@@ -106,6 +106,15 @@ function Add-FirewallException
 
 $winrmHttpsPort=5986
 
+# set the category on netword connection to not public
+# https://powertoe.wordpress.com/2009/12/28/enable-powershell-remoting-while-running-vmware-workstation-in-a-domain/
+$nlm = [Activator]::CreateInstance([Type]::GetTypeFromCLSID([Guid]"{DCB00C01-570F-4A9B-8D69-199FDBA5723B}"))
+$connections = $nlm.getnetworkconnections()
+$connections |foreach { if ($_.getnetwork().getcategory() -eq 0) { $_.getnetwork().setcategory(1) } }
+
+# quick config ist need for Windows 10
+winrm quickconfig -quiet
+
 # The default MaxEnvelopeSizekb on Windows Server is 500 Kb which is very less. It needs to be at 8192 Kb. The small envelop size if not changed
 # results in WS-Management service responding with error that the request size exceeded the configured MaxEnvelopeSize quota.
 winrm set winrm/config '@{MaxEnvelopeSizekb = "8192"}'

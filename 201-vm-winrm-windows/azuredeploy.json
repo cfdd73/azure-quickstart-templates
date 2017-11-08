@@ -14,76 +14,46 @@
         "description": "Password for the Virtual Machine."
       }
     },
-    "dnsLabelPrefix": {
-      "type": "string",
-      "metadata": {
-        "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
-      }
-    },
     "windowsOSVersion": {
       "type": "string",
-      "defaultValue": "2012-R2-Datacenter",
+      "defaultValue": "RS3-Pro",
       "allowedValues": [
-        "2008-R2-SP1",
-        "2012-Datacenter",
-        "2012-R2-Datacenter"
+        "RS2-Pro",
+        "RS2-ProN",
+        "RS3-Pro",
+        "RS3-ProN"
       ],
       "metadata": {
         "description": "The Windows version for the VM. This will pick a fully patched image of this given Windows version. Allowed values: 2008-R2-SP1, 2012-Datacenter, 2012-R2-Datacenter."
       }
     },
-    "vmName": {
+    "resourcePrefix": {
       "type": "string",
-      "defaultValue": "MyVM",
+      "defaultValue": "esazciw10-99",
       "metadata": {
-        "description": "The name for the VM."
-      }
-    },
-    "nicName": {
-      "type": "string",
-      "defaultValue": "myVMNic",
-      "metadata": {
-        "description": "The name for the VM's NIC."
-      }
-    },
-    "virtualNetworkName": {
-      "type": "string",
-      "defaultValue": "MyVNET",
-      "metadata": {
-        "description": "The name for the VM's VNET."
-      }
-    },
-    "publicIPAddressName": {
-      "type": "string",
-      "defaultValue": "myPublicIP",
-      "metadata": {
-        "description": "The name for the VM's public IP."
-      }
-    },
-    "subnetName": {
-      "type": "string",
-      "defaultValue": "Subnet",
-      "metadata": {
-        "description": "The name for the VM's Subnet."
+        "description": "Prefix for resources names"
       }
     }
   },
   "variables": {
-    "imagePublisher": "MicrosoftWindowsServer",
-    "imageOffer": "WindowsServer",
-    "nicName": "[parameters('nicName')]",
+    "resourcePrefix": "[parameters('resourcePrefix')]",
+    "dnsLabelPrefix": "[parameters('resourcePrefix')]",
+    "imagePublisher": "MicrosoftWindowsDesktop",
+    "imageOffer": "Windows-10",
+    "nicName": "[concat(variables('resourcePrefix'), '-NIC')]",
     "addressPrefix": "10.0.0.0/16",
-    "subnetName": "[parameters('subnetName')]",
+    "subnetName": "[concat(variables('resourcePrefix'), '-Subnet')]",
     "subnetPrefix": "10.0.0.0/24",
-    "publicIPAddressName": "[parameters('publicIPAddressName')]",
+    "publicIPAddressName": "[concat(variables('resourcePrefix'), '-PublicIP')]",
     "publicIPAddressType": "Dynamic",
-    "vmName": "[parameters('vmName')]",
+    "vmName": "[concat(variables('resourcePrefix'), '-VM')]",
     "vmSize": "Standard_A2",
-    "virtualNetworkName": "[parameters('virtualNetworkName')]",
+    "virtualNetworkName": "[concat(variables('resourcePrefix'), '-VNET')]",
     "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
     "subnetRef": "[concat(variables('vnetID'),'/subnets/',variables('subnetName'))]",
     "apiVersion": "2015-06-15",
-    "hostDNSNameScriptArgument": "[concat('*.',resourceGroup().location,'.cloudapp.azure.com')]"
+    "hostDNSNameScriptArgument": "[concat('*.',resourceGroup().location,'.cloudapp.azure.com')]",
+    "frontEndNSGName": "[concat(variables('resourcePrefix'), '-NSG')]"
   },
   "resources": [
     {
@@ -94,8 +64,77 @@
       "properties": {
         "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
         "dnsSettings": {
-          "domainNameLabel": "[parameters('dnsLabelPrefix')]"
+          "domainNameLabel": "[variables('dnsLabelPrefix')]"
         }
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "name": "[variables('frontEndNSGName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "NSG - Front End"
+      },
+      "properties": {
+        "securityRules": [
+          {
+            "name": "default-allow-rdp",
+            "properties": {
+              "description": "Allow RDP",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3389",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 1000,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "ssh-rule",
+            "properties": {
+              "description": "Allow SSH",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "22",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "http-rule",
+            "properties": {
+              "description": "Allow HTTP",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "80",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 101,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "WinRM-https-rule",
+            "properties": {
+              "description": "Allow WinRM HTTPS",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "5986",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 1100,
+              "direction": "Inbound"
+            }
+          }
+        ]
       }
     },
     {
@@ -113,11 +152,17 @@
           {
             "name": "[variables('subnetName')]",
             "properties": {
-              "addressPrefix": "[variables('subnetPrefix')]"
+              "addressPrefix": "[variables('subnetPrefix')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('frontEndNSGName'))]"
+              }
             }
           }
         ]
-      }
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkSecurityGroups/', variables('frontEndNSGName'))]"
+      ]
     },
     {
       "apiVersion": "2015-06-15",
@@ -196,8 +241,8 @@
             "typeHandlerVersion": "1.4",
             "settings": {
               "fileUris": [
-                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-windows/ConfigureWinRM.ps1",
-                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-windows/makecert.exe"
+                "https://raw.githubusercontent.com/cfdd73/azure-quickstart-templates/master/201-vm-winrm-windows/ConfigureWinRM.ps1",
+                "https://raw.githubusercontent.com/cfdd73/azure-quickstart-templates/master/201-vm-winrm-windows/makecert.exe"
               ],
               "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -file ConfigureWinRM.ps1 ',variables('hostDNSNameScriptArgument'))]"
             }
