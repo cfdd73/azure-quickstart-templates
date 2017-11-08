@@ -2,16 +2,6 @@
     "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {        
-        // use command line parameter or command line input for that field.
-        // Like this: az group deployment create -g MyResourceGroup --template-file azuredeploy.json --parameters @params.json --parameters MyValue=This MyArray=@array.json
-        // "adminUsername": {
-        //    "value": "not in file"
-        //},
-        // use command line parameter or command line input for that field.
-        // Like this: az group deployment create -g MyResourceGroup --template-file azuredeploy.json --parameters @params.json --parameters MyValue=This MyArray=@array.json
-        // "adminPassword": {
-        //    "value": "not in file"
-        //},
         "resourcePrefix": {
             "value": "prefixit"
         }
